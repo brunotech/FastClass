@@ -32,7 +32,7 @@ class MyDataset():
             self.dataset = pd.DataFrame(columns=('data', 'target'))
             data, target = [],[]
             f = open(path_to_file, 'r', encoding='utf-8')
-            for line in f.readlines():
+            for line in f:
                 if len(line.strip().split('\t')) >= 2:
                     data.append(line.strip().split('\t')[-1])
                     target.append(int(line.strip().split('\t')[0]))
@@ -52,8 +52,12 @@ class MyDataset():
         input_ids = encode_dict_result["input_ids"].to(self.device)
         token_type_ids = encode_dict_result["token_type_ids"].to(self.device)
         attention_mask = encode_dict_result["attention_mask"].to(self.device)
-        sample = {"input_ids": input_ids, "token_type_ids": token_type_ids, "attention_mask": attention_mask, "labels": label}
-        return sample
+        return {
+            "input_ids": input_ids,
+            "token_type_ids": token_type_ids,
+            "attention_mask": attention_mask,
+            "labels": label,
+        }
 
 
 
@@ -61,7 +65,7 @@ def evaluate(model, dataloader, device, metrics):
     model.eval()
     total_val_loss, total_eval_accuracy, total_eval_f1 = 0, 0, 0
     pred_labels = []
-    for i, batch in enumerate(dataloader):
+    for batch in dataloader:
         with torch.no_grad():
             input_ids, token_type_ids, attention_mask = batch["input_ids"].squeeze(1), batch["token_type_ids"].squeeze(1), \
                                                         batch["attention_mask"].squeeze(1)
@@ -97,7 +101,7 @@ def evaluate(model, dataloader, device, metrics):
 
 
 def entory(data):
-    x_value_list = set([data[i] for i in range(data.shape[0])])
+    x_value_list = {data[i] for i in range(data.shape[0])}
     ent = 0.0
     for x_value in x_value_list:
         p = float(data[data == x_value].shape[0]) / data.shape[0]

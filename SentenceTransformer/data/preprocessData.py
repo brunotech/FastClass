@@ -28,16 +28,15 @@ for strZipFile in files:
 
         else:
             study = "null"
-            if study not in documents.keys():
-                documents[study] = [title]
-            else:
+            if study in documents:
                 documents[study].append(title)
 
+            else:
+                documents[study] = [title]
 print(len(documents.keys()))
 
 fr = open('S2ORC_all.txt', 'w', encoding='utf-8')
-for k in documents.keys():
-    doc_list = documents[k]
+for k, doc_list in documents.items():
     for doc in doc_list:
         fr.write(k + '\t' + doc + '\n')
 
@@ -50,14 +49,14 @@ for i in range(len(lines)):
         print(i)
     line = lines[i].strip().split('\t')
     if langid.classify(line[1])[0] == 'en':
-        if line[0] not in documents.keys():
-            documents[line[0]] = [line[1]]
-        else:
+        if line[0] in documents:
             documents[line[0]].append(line[1])
-for k in documents.keys():
-    print(len(documents[k]))
+        else:
+            documents[line[0]] = [line[1]]
+for v in documents.values():
+    print(len(v))
 fw = open('S2ORC.txt', 'w', encoding='utf-8')
-for k in documents.keys():
+for k in documents:
     doc_list = random.sample(documents[k], 100000)
     for doc in doc_list:
         fw.write(k + '\t' + doc + '\n')
@@ -68,7 +67,7 @@ files= os.listdir(path)
 fw = open('MultiDomainSentimentDataset.txt', 'w', encoding='utf-8')
 for file in files:
     if not os.path.isdir(file):
-        file_path = path + "/" + file + '/all.review'
+        file_path = f"{path}/" + file + '/all.review'
         f = open(file_path, 'rb')
         print(file)
         doc = []
@@ -93,10 +92,13 @@ for file in files:
 
 fw = open('./MIND.txt', 'w', encoding='utf-8')
 for dir in ['train', 'dev', 'test']:
-    data = pd.read_csv('MIND/MINDlarge_{}/news.tsv'.format(dir), sep='\t', header=None, error_bad_lines=False)
-    doc = []
-    for item in data[3]:
-        doc.append(item.lower())
+    data = pd.read_csv(
+        f'MIND/MINDlarge_{dir}/news.tsv',
+        sep='\t',
+        header=None,
+        error_bad_lines=False,
+    )
+    doc = [item.lower() for item in data[3]]
     print(len(doc))
     doc = list(set(doc))
     print(len(doc))
@@ -107,25 +109,19 @@ for dir in ['train', 'dev', 'test']:
 import gzip
 import json
 import random
-fw = open('realnews.txt', 'w', encoding='utf-8')
-with gzip.open('realnews.tar.gz', 'rb') as pf:
-    while True:
-        line = pf.readline()
-        if not line:
-            break
-        else:
+with open('realnews.txt', 'w', encoding='utf-8') as fw:
+    with gzip.open('realnews.tar.gz', 'rb') as pf:
+        while line := pf.readline():
             try:
                 # print(line.decode('utf8'))
                 doc = json.loads(line.decode('utf8').strip())
                 fw.write(doc['title'] + '\n')
             except:
                 print('error')
-fw.close()
 fw = open('realnews_2m.txt', 'w', encoding='utf-8')
 doc = []
 with open('realnews.txt', 'r') as pf:
-    for line in pf.readlines():
-        doc.append(line.strip())
+    doc.extend(line.strip() for line in pf)
 print(len(doc))
 tmp = random.sample(doc, 2000000)
 for docs in tmp:
@@ -136,7 +132,7 @@ for docs in tmp:
 from nltk.tokenize import sent_tokenize
 fw = open('./wiki500k_doc.txt', 'w', encoding='utf8')
 with open('./wiki500k.txt', 'r', encoding='utf8') as f:
-    for line in f.readlines():
+    for line in f:
         sentences = sent_tokenize(line.strip())[0]
         fw.write(sentences + '\n')
 

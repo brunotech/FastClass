@@ -11,15 +11,17 @@ import pandas as pd
 import argparse
 
 def mix_grained_faiss(task, path, model, index, top_k_hits):
-    OUT = open(os.path.join(path, 'train_data_{}.txt'.format(top_k_hits)), 'w', encoding='utf-8')
+    OUT = open(
+        os.path.join(path, f'train_data_{top_k_hits}.txt'),
+        'w',
+        encoding='utf-8',
+    )
 
     news_data, news_targ = [], []
     with open(os.path.join(path,'self_data.txt'), 'r', encoding='utf-8') as f:
-        for lines in f.readlines():
+        for lines in f:
             news_data.append(lines.strip().split('\t')[1])
             news_targ.append(lines.strip().split('\t')[0])
-            #OUT.write("{}\t{}\t{}\n".format(lines.strip().split('\t')[0], 1.0, lines.strip().split('\t')[1]))
-
     count_targ = Counter(news_targ)
 
 
@@ -37,35 +39,15 @@ def mix_grained_faiss(task, path, model, index, top_k_hits):
         distances, corpus_ids = index.search(question_embedding, top_k_hits)
 
 
-        hits = []
-        for id, score in zip(corpus_ids[0], distances[0]):
-            hits.append({'corpus_id': id, 'score': score})
-
+        hits = [
+            {'corpus_id': id, 'score': score}
+            for id, score in zip(corpus_ids[0], distances[0])
+        ]
         hits = sorted(hits, key=lambda x: x['score'], reverse=True)
 
-        if task not in multi_task:
-            for hit in hits[0:top_k_hits]:
-                if hit['corpus_id'] not in ids_score.keys():
-                    ids_score[hit['corpus_id']] = hit['score']
-                    ids_target[hit['corpus_id']] = news_targ[k]
-                    ids_num[hit['corpus_id']] = (news_targ[k], 1)
-                else:
-                    if hit['score'] > ids_score[hit['corpus_id']]:
-                        ids_score[hit['corpus_id']] = hit['score']
-                        ids_target[hit['corpus_id']] = news_targ[k]
-                        if news_targ[k] == ids_num[hit['corpus_id']][0]:
-                            num = ids_num[hit['corpus_id']][1] + 1
-                            ids_num[hit['corpus_id']] = (news_targ[k], num)
-                        else:
-                            ids_num[hit['corpus_id']] = (news_targ[k], 1)
-        else:
-            # top_k_hits = int(data_num[news_targ[k]])
-            for hit in hits[0:top_k_hits]:
-                if hit['corpus_id'] not in ids_score.keys():
-                    ids_score[hit['corpus_id']] = [hit['score']]
-                    ids_target[hit['corpus_id']] = [news_targ[k]]
-                    ids_num[hit['corpus_id']] = (news_targ[k], 1)
-                else:
+        for hit in hits[:top_k_hits]:
+            if task in multi_task:
+                if hit['corpus_id'] in ids_score:
                     if news_targ[k] in ids_target[hit['corpus_id']]:
                         id = ids_target[hit['corpus_id']].index(news_targ[k])
                         score = ids_score[hit['corpus_id']][id]
@@ -85,37 +67,55 @@ def mix_grained_faiss(task, path, model, index, top_k_hits):
                         else:
                             ids_num[hit['corpus_id']] = (news_targ[k], 1)
 
-        # for hit in hits[0:top_k_hits]:
-        #     OUT.write("\t{}\t{}\t{}\n".format(news_targ[k],hit['score'], corpus_sentences[hit['corpus_id']]))
+                else:
+                    ids_score[hit['corpus_id']] = [hit['score']]
+                    ids_target[hit['corpus_id']] = [news_targ[k]]
+                    ids_num[hit['corpus_id']] = (news_targ[k], 1)
+            elif hit['corpus_id'] in ids_score:
+                if hit['score'] > ids_score[hit['corpus_id']]:
+                    ids_score[hit['corpus_id']] = hit['score']
+                    ids_target[hit['corpus_id']] = news_targ[k]
+                    if news_targ[k] == ids_num[hit['corpus_id']][0]:
+                        num = ids_num[hit['corpus_id']][1] + 1
+                        ids_num[hit['corpus_id']] = (news_targ[k], num)
+                    else:
+                        ids_num[hit['corpus_id']] = (news_targ[k], 1)
+            else:
+                ids_score[hit['corpus_id']] = hit['score']
+                ids_target[hit['corpus_id']] = news_targ[k]
+                ids_num[hit['corpus_id']] = (news_targ[k], 1)
+            # for hit in hits[0:top_k_hits]:
+            #     OUT.write("\t{}\t{}\t{}\n".format(news_targ[k],hit['score'], corpus_sentences[hit['corpus_id']]))
 
     print(len(ids_score.keys()))
     if task not in multi_task:
-        for k in ids_score.keys():
+        for k, v in ids_score.items():
             if task =='emotion' and int(ids_target[k]) == 9:
-                if ids_score[k]>0.5:
-                    OUT.write("{}\t{}\t{}\n".format(ids_target[k], ids_score[k], corpus_sentences[k]))
-            else:
-                if ids_num[k][1] > 1 and count_targ[ids_target[k]] >1:
-                    OUT.write("{}\t{}\t{}\n".format(ids_target[k], ids_score[k], corpus_sentences[k]))
-                elif count_targ[ids_target[k]] <= 1:
-                    OUT.write("{}\t{}\t{}\n".format(ids_target[k], ids_score[k], corpus_sentences[k]))
+                if v > 0.5:
+                    OUT.write(f"{ids_target[k]}\t{ids_score[k]}\t{corpus_sentences[k]}\n")
+            elif ids_num[k][1] > 1 and count_targ[ids_target[k]] >1:
+                OUT.write(f"{ids_target[k]}\t{ids_score[k]}\t{corpus_sentences[k]}\n")
+            elif count_targ[ids_target[k]] <= 1:
+                OUT.write(f"{ids_target[k]}\t{ids_score[k]}\t{corpus_sentences[k]}\n")
     else:
-        for k in ids_score.keys():
+        for k, v_ in ids_score.items():
             if '11' in ids_target[k]:
                 ids = ids_target[k].index(str(11))
-                if ids_score[k][ids] > 0.5:
-                    OUT.write("{}\t{}\t{}\n".format(11, ids_score[k][ids], corpus_sentences[k]))
+                if v_[ids] > 0.5:
+                    OUT.write(f"11\t{ids_score[k][ids]}\t{corpus_sentences[k]}\n")
+            elif len(ids_score[k]) == 1:
+                if ids_num[k][1] > 1 and count_targ[ids_target[k][0]] >1:
+                    OUT.write(
+                        f"""{' '.join(ids_target[k])}\t{" ".join(list(map(str, ids_score[k])))}\t{corpus_sentences[k]}\n"""
+                    )
+                elif count_targ[ids_target[k][0]] <= 1:
+                    OUT.write(
+                        f"""{' '.join(ids_target[k])}\t{" ".join(list(map(str, ids_score[k])))}\t{corpus_sentences[k]}\n"""
+                    )
             else:
-                if len(ids_score[k]) == 1:
-                    if ids_num[k][1] > 1 and count_targ[ids_target[k][0]] >1:
-                        OUT.write("{}\t{}\t{}\n".format(' '.join(ids_target[k]), " ".join(list(map(str, ids_score[k]))),
-                                                        corpus_sentences[k]))
-                    elif count_targ[ids_target[k][0]] <= 1:
-                        OUT.write("{}\t{}\t{}\n".format(' '.join(ids_target[k]), " ".join(list(map(str, ids_score[k]))),
-                                                        corpus_sentences[k]))
-                else:
-                    OUT.write("{}\t{}\t{}\n".format(' '.join(ids_target[k]), " ".join(list(map(str, ids_score[k]))),
-                                                    corpus_sentences[k]))
+                OUT.write(
+                    f"""{' '.join(ids_target[k])}\t{" ".join(list(map(str, ids_score[k])))}\t{corpus_sentences[k]}\n"""
+                )
 
 
 if __name__ == "__main__":
@@ -152,10 +152,10 @@ if __name__ == "__main__":
         # Get all unique sentences from the file
         corpus_sentences = []
         for dataset in datasets:
-            file = os.path.join(args.model_path, 'data/{}.txt'.format(dataset))
+            file = os.path.join(args.model_path, f'data/{dataset}.txt')
             if dataset != 'S2ORC':
                 with open(file, 'r', encoding='utf-8') as fIn:
-                    for line in fIn.readlines():
+                    for line in fIn:
                         text = line.strip()
                         if len(text.split()) >= 5:
                             corpus_sentences.append(text)
@@ -164,7 +164,7 @@ if __name__ == "__main__":
 
             else:
                 with open(file, 'r', encoding='utf-8') as fIn:
-                    for line in fIn.readlines():
+                    for line in fIn:
                         text = line.strip().split('\t')[1]
                         if len(text.split()) >= 5:
                             corpus_sentences.append(text)
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     index.add(corpus_embeddings)
     print(time.time()-stime)
     ######### Search in the index ###########
-    print("Corpus loaded with {} sentences / embeddings".format(len(corpus_sentences)))
+    print(f"Corpus loaded with {len(corpus_sentences)} sentences / embeddings")
 
 
     for top_k_hits in [100, 200, 300]:

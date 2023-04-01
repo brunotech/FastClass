@@ -16,7 +16,7 @@ def flat_accuracy(preds, labels):
     LRAP = label_ranking_average_precision_score(labels, preds)
     y_preds = preds > 0.5
     for i in range(y_preds.shape[0]):
-        if not True in y_preds[i]:
+        if True not in y_preds[i]:
             y_preds[i][11] = True
 
     weighted_f1 = f1_score(y_true=labels, y_pred=y_preds, average='weighted')
@@ -42,14 +42,14 @@ class MyDataset():
                     tmp[int(line.strip().split('\t')[0])] = 1
                 target.append(tmp)
         else:
-            for line in f.readlines():
+            for line in f:
                 data.append(line.strip().split('\t')[-1])
                 tmp = [0] * num_labels
                 for ids in line.strip().split('\t')[0].split():
                     tmp[int(ids)] = 1
                 target.append(tmp)
 
-            # target.append(list(map(int, line.strip().split('\t')[0].split())))
+                # target.append(list(map(int, line.strip().split('\t')[0].split())))
 
         self.dataset['data'] = data
         self.dataset['target'] = target
@@ -68,14 +68,17 @@ class MyDataset():
         attention_mask = encode_dict_result["attention_mask"].to(self.device)
         label = torch.Tensor(label)
 
-        sample = {"input_ids": input_ids, "token_type_ids": token_type_ids, "attention_mask": attention_mask,
-                  "labels": label}
-        return sample
+        return {
+            "input_ids": input_ids,
+            "token_type_ids": token_type_ids,
+            "attention_mask": attention_mask,
+            "labels": label,
+        }
 
 def evaluate(model, dataloader, num_labels, device):
     model.eval()
     total_logits, total_label = np.array([[]] * num_labels).T, np.array([[]] * num_labels).T
-    for i, batch in enumerate(dataloader):
+    for batch in dataloader:
         with torch.no_grad():
             input_ids, token_type_ids, attention_mask = batch["input_ids"].squeeze(1), batch["token_type_ids"].squeeze(1), \
                                                         batch["attention_mask"].squeeze(1)
@@ -103,7 +106,7 @@ def entory(data):
 
     index = np.array(index)
 
-    x_value_list = set([index[i] for i in range(index.shape[0])])
+    x_value_list = {index[i] for i in range(index.shape[0])}
     ent = 0.0
     for x_value in x_value_list:
         p = float(index[index == x_value].shape[0]) / index.shape[0]

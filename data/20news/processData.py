@@ -18,17 +18,17 @@ print(set(labels))
 
 fw = open('./test.txt', 'w', encoding='utf8')
 for i in range(len(labels)):
-    if " ".join(data[i].split()) != '':
-        fw.write('{}\t{}\n'.format(labels[i], " ".join(data[i].split())))
-    else:
+    if not " ".join(data[i].split()):
         print(i)
+    else:
+        fw.write(f'{labels[i]}\t{" ".join(data[i].split())}\n')
 newsgroups_train = fetch_20newsgroups(subset='train', remove=('headers','footers','quotes'))
 labels = newsgroups_train.target
 data = newsgroups_train.data
 fw = open('./train.txt', 'w', encoding='utf8')
 for i in range(len(labels)):
     if " ".join(data[i].split()) != '':
-        fw.write('{}\t{}\n'.format(labels[i], " ".join(data[i].split())))
+        fw.write(f'{labels[i]}\t{" ".join(data[i].split())}\n')
     else:
         print(i)
 
